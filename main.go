@@ -1,8 +1,9 @@
 package main
 
 import (
-	_ "embed"
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 )
@@ -11,18 +12,12 @@ import (
 const DIR_PERM = 0755
 const FILE_PERM = 0644
 
-// The "embed" directives set the contents of the files
-// into the variables below during compile time.
-// Paths must be relative to this file.
+// The "embed" directive creates a virtual file system of the
+// "assets" directory and its contents during compilation so that
+// it can be read later on when creating the sandbox.
 
-//go:embed assets/index.html
-var htmlFile []byte
-
-//go:embed assets/style.css
-var cssFile []byte
-
-//go:embed assets/script.js
-var jsFile []byte
+//go:embed assets/*
+var assetsFS embed.FS
 
 func main() {
 	args := os.Args
@@ -45,21 +40,23 @@ func main() {
 	}
 
 	// Creates the files inside the sandbox directory
-	err = os.WriteFile(path.Join(name, "index.html"), []byte(htmlFile), FILE_PERM)
+	fileEntries, err := fs.ReadDir(assetsFS, "assets")
 	if err != nil {
 		panic(err)
 	}
 
-	err = os.WriteFile(path.Join(name, "style.css"), []byte(cssFile), FILE_PERM)
-	if err != nil {
-		panic(err)
-	}
+	for i := range fileEntries {
+		fileContents, err := fs.ReadFile(assetsFS, path.Join("assets", fileEntries[i].Name()))
+		if err != nil {
+			panic(err)
+		}
 
-	err = os.WriteFile(path.Join(name, "script.js"), []byte(jsFile), FILE_PERM)
-	if err != nil {
-		panic(err)
+		err = os.WriteFile(path.Join(name, fileEntries[i].Name()), fileContents, FILE_PERM)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	// Displays a success message
-	fmt.Printf("Sandbox \"%s\" created with success!", name)
+	fmt.Printf("Sandbox \"%s\" created with success!\n", name)
 }
